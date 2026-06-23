@@ -160,18 +160,29 @@ fn normalize_version(v: &str) -> String {
 }
 
 fn highlight_version_diff(old: &str, new: &str) -> (String, String) {
-    let common_bytes = old
+    let prefix_len = old
         .bytes()
         .zip(new.bytes())
         .take_while(|(a, b)| a == b)
         .count();
 
-    let prefix = &old[..common_bytes];
-    let old_suffix = &old[common_bytes..];
-    let new_suffix = &new[common_bytes..];
+    let old_rest = &old[prefix_len..];
+    let new_rest = &new[prefix_len..];
 
-    let old_str = format!("{}{}", prefix.dimmed(), old_suffix.red().bold());
-    let new_str = format!("{}{}", prefix.dimmed(), new_suffix.green().bold());
+    let suffix_len = old_rest
+        .bytes()
+        .rev()
+        .zip(new_rest.bytes().rev())
+        .take_while(|(a, b)| a == b)
+        .count();
+
+    let prefix = &old[..prefix_len];
+    let old_mid = &old_rest[..old_rest.len() - suffix_len];
+    let new_mid = &new_rest[..new_rest.len() - suffix_len];
+    let suffix = &old_rest[old_rest.len() - suffix_len..];
+
+    let old_str = format!("{}{}{}", prefix.dimmed(), old_mid.red().bold(), suffix.dimmed());
+    let new_str = format!("{}{}{}", prefix.dimmed(), new_mid.green().bold(), suffix.dimmed());
 
     (old_str, new_str)
 }
