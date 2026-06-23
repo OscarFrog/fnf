@@ -21,7 +21,7 @@ const KNOWN_ARCHES: &[&str] = &[
 ];
 
 #[derive(Parser)]
-#[command(name = "dnf", about = "dnf wrapper with improved upgrade output")]
+#[command(name = "ftf", about = "dnf wrapper with improved upgrade output")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,

@@ -1,10 +1,10 @@
 [package]
-name = "dnf-wrapper"
+name = "ftf"
 version = "0.1.0"
 edition = "2024"
 
 [[bin]]
-name = "dnf"
+name = "ftf"
 path = "src/main.rs"
 
 [dependencies]
