@@ -12,6 +12,8 @@ struct PackageUpdate {
     arch: String,
     old_version: String,
     new_version: String,
+    repo: String,
+    download_size: u64,
 }
 
 const DNF: &str = "/usr/bin/dnf";
@@ -104,6 +106,8 @@ fn check_updates() -> Result<(Vec<PackageUpdate>, i32)> {
 
     updates.sort_by(|a, b| a.name.cmp(&b.name));
 
+    fetch_download_sizes(&mut updates).context("fetching download sizes")?;
+
     Ok((updates, exit_code))
 }
 
@@ -115,6 +119,7 @@ fn parse_update_line(line: &str, installed: &HashMap<String, String>) -> Option<
 
     let pkg_arch = parts[0];
     let new_version_raw = parts[1];
+    let repo = parts[2];
 
     let dot_pos = pkg_arch.rfind('.')?;
     let name = &pkg_arch[..dot_pos];
@@ -133,6 +138,8 @@ fn parse_update_line(line: &str, installed: &HashMap<String, String>) -> Option<
         arch: arch.to_string(),
         old_version,
         new_version,
+        repo: repo.to_string(),
+        download_size: 0,
     })
 }
 
@@ -155,8 +162,54 @@ fn get_installed_versions() -> Result<HashMap<String, String>> {
     Ok(map)
 }
 
+fn fetch_download_sizes(updates: &mut Vec<PackageUpdate>) -> Result<()> {
+    if updates.is_empty() {
+        return Ok(());
+    }
+
+    let mut cmd = Command::new("dnf");
+    cmd.arg("repoquery")
+        .arg("--queryformat")
+        .arg("%{name}.%{arch} %{downloadsize}\n");
+
+    for u in updates.iter() {
+        cmd.arg(format!("{}-{}.{}", u.name, u.new_version, u.arch));
+    }
+
+    let output = cmd.output().context("running dnf repoquery")?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    let sizes: HashMap<String, u64> = stdout
+        .lines()
+        .filter_map(|line| {
+            let (pkg, size_str) = line.split_once(' ')?;
+            let size = size_str.parse().ok()?;
+            Some((pkg.to_string(), size))
+        })
+        .collect();
+
+    for u in updates.iter_mut() {
+        let key = format!("{}.{}", u.name, u.arch);
+        u.download_size = sizes.get(&key).copied().unwrap_or(0);
+    }
+
+    Ok(())
+}
+
 fn normalize_version(v: &str) -> String {
     v.strip_prefix("0:").unwrap_or(v).to_string()
+}
+
+fn format_size(bytes: u64) -> String {
+    if bytes >= 1 << 30 {
+        format!("{:.1} GiB", bytes as f64 / (1u64 << 30) as f64)
+    } else if bytes >= 1 << 20 {
+        format!("{:.1} MiB", bytes as f64 / (1u64 << 20) as f64)
+    } else if bytes >= 1 << 10 {
+        format!("{:.1} KiB", bytes as f64 / (1u64 << 10) as f64)
+    } else {
+        format!("{} B", bytes)
+    }
 }
 
 fn highlight_version_diff(old: &str, new: &str) -> (String, String) {
@@ -189,12 +242,15 @@ fn highlight_version_diff(old: &str, new: &str) -> (String, String) {
 
 fn display_updates(updates: &[PackageUpdate]) {
     let count = updates.len();
+    let total_size = updates.iter().map(|u| u.download_size).sum();
+
     println!(
         "{}",
         format!(
-            " :: {} package{} to upgrade",
+            " :: {} package{} to upgrade  ({})",
             count,
-            if count == 1 { "" } else { "s" }
+            if count == 1 { "" } else { "s" },
+            format_size(total_size),
         )
         .cyan()
         .bold()
@@ -203,6 +259,12 @@ fn display_updates(updates: &[PackageUpdate]) {
 
     let max_name = updates.iter().map(|u| u.name.len()).max().unwrap_or(0);
     let max_arch = updates.iter().map(|u| u.arch.len()).max().unwrap_or(0);
+    let max_old = updates.iter().map(|u| u.old_version.len()).max().unwrap_or(0);
+    let max_size = updates
+        .iter()
+        .map(|u| format_size(u.download_size).len())
+        .max()
+        .unwrap_or(0);
 
     for update in updates {
         let (old_colored, new_colored) =
@@ -210,13 +272,20 @@ fn display_updates(updates: &[PackageUpdate]) {
 
         let name_padded = format!("{:<max_name$}", update.name);
         let arch_padded = format!("{:<max_arch$}", update.arch);
+        let old_pad = " ".repeat(max_old.saturating_sub(update.old_version.len()));
+        let size_str = format_size(update.download_size);
+        let size_pad = " ".repeat(max_size.saturating_sub(size_str.len()));
 
         println!(
-            "    {}  {}  {} -> {}",
+            "    {}  {}  {}{} -> {}  {}{}  {}",
             name_padded.bold(),
             arch_padded.dimmed(),
             old_colored,
+            old_pad,
             new_colored,
+            size_pad,
+            size_str.dimmed(),
+            update.repo.dimmed(),
         );
     }
 }
