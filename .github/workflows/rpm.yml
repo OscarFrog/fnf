@@ -2,8 +2,8 @@ name: Build RPM
 
 on:
   push:
-    branches: [main]
-    tags: ['v*']
+    branches: [ main ]
+    tags: [ 'v*' ]
   pull_request:
   workflow_dispatch:
 
@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: fedora:latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
