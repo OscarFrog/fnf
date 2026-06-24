@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `fnf` (Fancified YUM) is a `dnf` wrapper that enhances `dnf upgrade` with yay-style colored output: version diffs highlighted by differing segment, aligned columns, download sizes, repository names, and a Y/n confirmation prompt before running the actual upgrade.
 
-Binary name: `fnf`. The repo directory is `dnf-wrapper` for historical reasons.
+Binary name: `fnf`.
 
 ## Commands
 
