@@ -1,1 +1,0 @@
-- [ ] spinner does not work

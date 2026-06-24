@@ -139,12 +139,11 @@ fn process_stderr(stderr: impl std::io::Read) -> Result<SizeInfo> {
                 pb.set_style(
                     ProgressStyle::default_spinner()
                         .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏ ")
-                        .template("{spinner.cyan} {msg}")
+                        .template("{spinner:.cyan} {msg}")
                         .unwrap(),
                 );
+                pb.enable_steady_tick(Duration::from_millis(100));
                 pb.set_message("Updating and loading repositories...");
-                pb.tick(); // render first frame immediately; enable_steady_tick sleeps before its first tick
-                pb.enable_steady_tick(Duration::from_millis(80));
                 spinner = Some(pb);
             }
             "Repositories loaded." => {
