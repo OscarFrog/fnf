@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: fedora:latest
+    env:
+      GIT_DISCOVERY_ACROSS_FILESYSTEM: 1
 
     steps:
       - uses: actions/checkout@v4
