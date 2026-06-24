@@ -3,6 +3,9 @@ name = "fnf"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+description = "dnf wrapper with yay-style colored version diffs"
+documentation = "https://github.com/sebdotv/fnf"
+repository = "https://github.com/sebdotv/fnf"
 
 [[bin]]
 name = "fnf"
