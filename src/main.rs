@@ -14,7 +14,7 @@ struct PackageUpdate {
     old_version: String,
     new_version: String,
     old_repo: String,
-    repo: String,
+    new_repo: String,
     download_size: u64,
 }
 
@@ -48,7 +48,7 @@ fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Upgrade { show_arch, show_command } => run_upgrade_wrapper(show_arch, show_command),
+        Commands::Upgrade { show_arch, show_command } => run_upgrade_wrapper(&Options{ show_arch, show_command }),
     };
 
     if let Err(e) = result {
@@ -57,13 +57,20 @@ fn main() {
     }
 }
 
-fn run_upgrade_wrapper(show_arch: bool, show_command: bool) -> Result<()> {
+struct Options {
+    show_arch: bool,
+    show_command: bool,
+}
+
+fn run_upgrade_wrapper(options: &Options) -> Result<()> {
     let (updates, size_info) = check_updates().context("checking for updates")?;
 
     if updates.is_empty() {
         println!("{}", " :: System is up to date.".green().bold());
         return Ok(());
     }
+
+    let Options { show_arch, show_command } = *options;
 
     display_updates(&updates, show_arch, &size_info);
 
@@ -242,7 +249,7 @@ fn parse_update_lines(stdout: &str) -> Result<Vec<PackageUpdate>> {
                 new_version: normalize_version(parts[2]),
                 old_version: String::new(),
                 old_repo: String::new(),
-                repo: parts[3].to_string(),
+                new_repo: parts[3].to_string(),
                 download_size: parse_dnf_size(parts[4], parts[5])
                     .with_context(|| format!("parsing size on line {line:?}"))?,
             });
@@ -379,8 +386,8 @@ fn display_updates(updates: &[PackageUpdate], show_arch: bool, size_info: &SizeI
         let size_pad = " ".repeat(max_size.saturating_sub(size_str.len()));
 
         let old_repo = shorten_repo(&update.old_repo);
-        let new_repo = shorten_repo(&update.repo);
-        let repo_display = if update.old_repo.is_empty() || update.old_repo == update.repo {
+        let new_repo = shorten_repo(&update.new_repo);
+        let repo_display = if update.old_repo.is_empty() || update.old_repo == update.new_repo {
             new_repo.dimmed().to_string()
         } else {
             let (old_r, new_r) = highlight_diff(&old_repo, &new_repo);
