@@ -30,8 +30,8 @@ struct Cli {
 enum Commands {
     #[command(alias = "up", alias = "update", about = "Upgrade all packages")]
     Upgrade {
-        #[arg(long, short, help = "Show architecture column")]
-        arch: bool,
+        #[arg(long, short = 'a', help = "Show architecture column")]
+        show_arch: bool,
     },
 }
 
@@ -39,7 +39,7 @@ fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Upgrade { arch } => run_upgrade_wrapper(arch),
+        Commands::Upgrade { show_arch } => run_upgrade_wrapper(show_arch),
     };
 
     if let Err(e) = result {
@@ -189,6 +189,16 @@ fn highlight_diff(old: &str, new: &str) -> (String, String) {
     (old_str, new_str)
 }
 
+fn shorten_repo(repo: &str) -> String {
+    // Hex transaction hashes (e.g. 19278be6a81040f5b6cbc7bacea5148e) are replaced
+    // with a short form like "19..8e" since they carry no useful meaning.
+    if repo.len() >= 20 && repo.chars().all(|c| c.is_ascii_hexdigit()) {
+        format!("{}..{}", &repo[..2], &repo[repo.len() - 2..])
+    } else {
+        repo.to_string()
+    }
+}
+
 fn display_updates(updates: &[PackageUpdate], show_arch: bool) {
     let count = updates.len();
     let total_size = updates.iter().map(|u| u.download_size).sum();
@@ -209,6 +219,7 @@ fn display_updates(updates: &[PackageUpdate], show_arch: bool) {
     let max_name = updates.iter().map(|u| u.name.len()).max().unwrap_or(0);
     let max_arch = updates.iter().map(|u| u.arch.len()).max().unwrap_or(0);
     let max_old = updates.iter().map(|u| u.old_version.len()).max().unwrap_or(0);
+    let max_new = updates.iter().map(|u| u.new_version.len()).max().unwrap_or(0);
     let max_size = updates
         .iter()
         .map(|u| format_size(u.download_size).len())
@@ -220,13 +231,16 @@ fn display_updates(updates: &[PackageUpdate], show_arch: bool) {
 
         let name_padded = format!("{:<max_name$}", update.name);
         let old_pad = " ".repeat(max_old.saturating_sub(update.old_version.len()));
+        let new_pad = " ".repeat(max_new.saturating_sub(update.new_version.len()));
         let size_str = format_size(update.download_size);
         let size_pad = " ".repeat(max_size.saturating_sub(size_str.len()));
 
+        let old_repo = shorten_repo(&update.old_repo);
+        let new_repo = shorten_repo(&update.repo);
         let repo_display = if update.old_repo.is_empty() || update.old_repo == update.repo {
-            update.repo.dimmed().to_string()
+            new_repo.dimmed().to_string()
         } else {
-            let (old_r, new_r) = highlight_diff(&update.old_repo, &update.repo);
+            let (old_r, new_r) = highlight_diff(&old_repo, &new_repo);
             format!("{} -> {}", old_r, new_r)
         };
 
@@ -237,12 +251,13 @@ fn display_updates(updates: &[PackageUpdate], show_arch: bool) {
         };
 
         println!(
-            "    {}{}  {}{} -> {}  {}{}  {}",
+            "    {}{}  {}{} -> {}{}  {}{}  {}",
             name_padded.bold(),
             arch_col,
             old_ver,
             old_pad,
             new_ver,
+            new_pad,
             size_pad,
             size_str.dimmed(),
             repo_display,

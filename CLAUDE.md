@@ -45,6 +45,7 @@ Everything lives in `src/main.rs`. No modules, no workspace.
 - `parse_dnf_size()` converts dnf's human-readable sizes (e.g. `3.6 MiB`) to bytes for summing; `format_size()` re-formats for display
 - Column widths are computed from max lengths before printing, so all rows align; colored strings are padded by appending plain spaces after the ANSI codes
 - Repo column: shows repo name dimmed when unchanged; shows `old_repo -> new_repo` diff when the package's source repo changed
-- Arch column is hidden by default; `fnf upgrade --arch` / `-a` shows it
+- `shorten_repo()` replaces hex transaction hashes (≥20 hex chars) with `first2..last2` (e.g. `19..8e`) since they carry no useful meaning
+- Arch column is hidden by default; `fnf upgrade --show-arch` / `-a` shows it
 - `DNF` constant points to `/usr/bin/dnf` (absolute path, avoids PATH shadowing)
 - clap handles subcommand parsing; `upgrade` has aliases `up` and `update`
