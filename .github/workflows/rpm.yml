@@ -22,7 +22,7 @@ jobs:
         run: dnf install -y cargo rust-packaging rpm-build git
 
       - name: Fix git safe directory
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        run: git config --global --add safe.directory '*'
 
       - name: Build source tarballs
         run: bash pkg/make-sources.sh
