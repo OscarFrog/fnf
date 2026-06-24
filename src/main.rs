@@ -108,13 +108,9 @@ fn check_updates() -> Result<(Vec<PackageUpdate>, SizeInfo)> {
 }
 
 fn process_stderr(stderr: impl std::io::Read) -> Result<SizeInfo> {
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicBool, Ordering};
-
     let reader = std::io::BufReader::new(stderr);
     let mut size_info = SizeInfo::default();
-    // (ProgressBar, stop-flag for tick thread)
-    let mut spinner: Option<(ProgressBar, Arc<AtomicBool>)> = None;
+    let mut spinner: Option<ProgressBar> = None;
 
     for line in reader.lines() {
         let line = line.context("reading dnf stderr")?;
@@ -128,23 +124,12 @@ fn process_stderr(stderr: impl std::io::Read) -> Result<SizeInfo> {
                         .unwrap(),
                 );
                 pb.set_message("Updating and loading repositories...");
-                pb.tick();
-                let stop = Arc::new(AtomicBool::new(false));
-                let pb2 = pb.clone();
-                let stop2 = stop.clone();
-                std::thread::spawn(move || {
-                    while !stop2.load(Ordering::Relaxed) {
-                        std::thread::sleep(Duration::from_millis(80));
-                        if !stop2.load(Ordering::Relaxed) {
-                            pb2.tick();
-                        }
-                    }
-                });
-                spinner = Some((pb, stop));
+                pb.tick(); // render first frame immediately; enable_steady_tick sleeps before its first tick
+                pb.enable_steady_tick(Duration::from_millis(80));
+                spinner = Some(pb);
             }
             "Repositories loaded." => {
-                if let Some((pb, stop)) = spinner.take() {
-                    stop.store(true, Ordering::Relaxed);
+                if let Some(pb) = spinner.take() {
                     pb.finish_and_clear();
                 }
             }
@@ -155,18 +140,14 @@ fn process_stderr(stderr: impl std::io::Read) -> Result<SizeInfo> {
             s if s.starts_with("After this operation,") => {
                 size_info.net_disk = parse_disk_line(s);
             }
-            other => {
-                // suppress all output during repo loading; only forward unexpected
-                // lines outside the spinner phase
-                if spinner.is_none() {
-                    eprintln!("{other}");
-                }
-            }
+            other => match &spinner {
+                Some(pb) => pb.println(other),
+                None => eprintln!("{other}"),
+            },
         }
     }
 
-    if let Some((pb, stop)) = spinner.take() {
-        stop.store(true, Ordering::Relaxed);
+    if let Some(pb) = spinner.take() {
         pb.finish_and_clear();
     }
 
