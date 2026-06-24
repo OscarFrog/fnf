@@ -33,10 +33,11 @@ Everything lives in `src/main.rs`. No modules, no workspace.
 **Upgrade flow:**
 
 1. `check_updates()` — runs `dnf upgrade --assumeno --color=never`; parses stdout
-2. `parse_update_lines()` — walks the transaction table on stdout:
-   - Lines starting with ` ` (1 space, inside `Upgrading:` section): new version — name, arch, version, repo, size
-   - Lines starting with `   replacing `: old version for the preceding package
-   - Any non-space-starting line changes the active section
+2. `parse_update_lines()` — returns `Result<Vec<PackageUpdate>>`; walks the transaction table on stdout with a strict state machine:
+   - Non-space lines change the active section; `Upgrading:` enters upgrade-parsing mode
+   - Inside `Upgrading:`: 1-space-prefixed lines are package lines (exactly 6 whitespace-delimited fields: name, arch, version, repo, size-number, size-unit)
+   - Each package line must be immediately followed by a `   replacing ` sub-line (3 spaces + "replacing ") with ≥4 fields whose first field matches the package name
+   - Any deviation (wrong field count, missing/orphan replacing line, name mismatch) is a hard error — this surfaces dnf output format changes immediately rather than silently misbehaving
 3. `display_updates()` prints an aligned table; `highlight_diff()` finds the common prefix and suffix between two strings and colors only the differing middle segment — used for both version and repo diffs
 4. After Y/n confirmation, `do_upgrade()` runs `dnf upgrade -y`
 
