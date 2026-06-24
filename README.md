@@ -1,6 +1,7 @@
 # fnf — Fancified YUM
 
-A `dnf upgrade` wrapper with yay-style output: colored version diffs, aligned columns, download/disk sizes, and a confirmation prompt before anything is installed.
+A `dnf upgrade` wrapper with yay-style output: colored version diffs, aligned columns, download/disk sizes, and a
+confirmation prompt before anything is installed.
 
 ## What it looks like
 
@@ -9,8 +10,8 @@ A `dnf upgrade` wrapper with yay-style output: colored version diffs, aligned co
 
  :: 19 packages to upgrade  (53 MiB download, +11 MiB disk)
 
-    firefox          112.0-1.fc44 -> 113.0-1.fc44  48.3 MiB  updates
-    bash             5.2.15-1.fc44 -> 5.2.21-1.fc44  3.5 MiB  updates
+    firefox          112.0-1.fc44 -> 113.0-1.fc44     48.3 MiB  updates
+    bash             5.2.15-1.fc44 -> 5.2.21-1.fc44    3.5 MiB  updates
     python3-requests 2.28.1-1.fc44 -> 2.28.2-1.fc44  121.4 KiB  updates
 
 ==> Proceed with upgrade? [Y/n]
@@ -36,10 +37,10 @@ fnf update           # alias
 
 ### Flags
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--show-arch` | `-a` | Show the architecture column |
-| `--show-command` | `-c` | Print the exact `dnf` command above the Y/n prompt |
+| Flag             | Short | Description                                        |
+|------------------|-------|----------------------------------------------------|
+| `--show-arch`    | `-a`  | Show the architecture column                       |
+| `--show-command` | `-c`  | Print the exact `dnf` command above the Y/n prompt |
 
 ### Example with flags
 
@@ -53,7 +54,8 @@ fnf upgrade --show-arch --show-command
 2. Shows a spinner while repositories load; suppresses dnf's repo-loading noise
 3. Parses the transaction table and displays a compact diff table
 4. Prompts for confirmation
-5. On Y: runs `dnf upgrade -y pkg-version.arch …` with the exact package specs shown — no surprise upgrades if new versions appeared since the check
+5. On Y: runs `dnf upgrade -y pkg-version.arch …` with the exact package specs shown — no surprise upgrades if new
+   versions appeared since the check
 
 ## Build
 
