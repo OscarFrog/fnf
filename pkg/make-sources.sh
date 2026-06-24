@@ -12,9 +12,16 @@ ARCHIVE="fnf-${VERSION}"
 
 echo "==> Version: ${VERSION}"
 
-# Source0 — git archive (matches GitHub's "Download tar.gz" format)
+# Source0 — git archive when available, tar fallback for CI containers
 echo "==> Creating ${ARCHIVE}.tar.gz ..."
-git archive --prefix="${ARCHIVE}/" HEAD | gzip -n > "pkg/${ARCHIVE}.tar.gz"
+if git rev-parse HEAD > /dev/null 2>&1; then
+    git archive --prefix="${ARCHIVE}/" HEAD | gzip -n > "pkg/${ARCHIVE}.tar.gz"
+else
+    tar czf "pkg/${ARCHIVE}.tar.gz" \
+        --transform "s|^\./|${ARCHIVE}/|" \
+        --exclude='./.git' --exclude='./pkg' --exclude='./target' \
+        .
+fi
 
 # Source1 — vendor snapshot
 echo "==> Creating ${ARCHIVE}-vendor.tar.gz ..."
