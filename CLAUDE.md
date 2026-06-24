@@ -39,7 +39,7 @@ Everything lives in `src/main.rs`. No modules, no workspace.
    - Each package line must be immediately followed by a `   replacing ` sub-line (3 spaces + "replacing ") with ≥4 fields whose first field matches the package name
    - Any deviation (wrong field count, missing/orphan replacing line, name mismatch) is a hard error — this surfaces dnf output format changes immediately rather than silently misbehaving
 3. `display_updates()` prints an aligned table; `highlight_diff()` finds the common prefix and suffix between two strings and colors only the differing middle segment — used for both version and repo diffs
-4. After Y/n confirmation, `do_upgrade()` runs `dnf upgrade -y`
+4. After Y/n confirmation, `do_upgrade()` runs `dnf upgrade -y` with explicit `name-[epoch:]version-release.arch` specs built from the displayed package list — only the packages shown, at the exact versions shown
 
 **Stderr handling (`process_stderr`):**
 - Runs in a background thread while stdout is being collected

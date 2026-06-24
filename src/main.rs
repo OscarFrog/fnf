@@ -73,7 +73,7 @@ fn run_upgrade_wrapper(show_arch: bool) -> Result<()> {
     let answer = input.trim().to_lowercase();
 
     if answer.is_empty() || answer == "y" || answer == "yes" {
-        do_upgrade();
+        do_upgrade(&updates);
     } else {
         println!("{}", "Operation cancelled.".yellow());
     }
@@ -396,9 +396,18 @@ fn display_updates(updates: &[PackageUpdate], show_arch: bool, size_info: &SizeI
     }
 }
 
-fn do_upgrade() {
+fn do_upgrade(updates: &[PackageUpdate]) {
+    // Build exact NEVRA specs so dnf only upgrades what we showed the user,
+    // at the exact version displayed. Format: name-[epoch:]version-release.arch
+    let specs: Vec<String> = updates
+        .iter()
+        .map(|u| format!("{}-{}.{}", u.name, u.new_version, u.arch))
+        .collect();
+
     let status = Command::new(DNF)
-        .args(["upgrade", "-y"])
+        .arg("upgrade")
+        .arg("-y")
+        .args(&specs)
         .status()
         .expect("failed to run dnf upgrade");
 
