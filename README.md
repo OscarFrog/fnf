@@ -79,6 +79,14 @@ cargo build           # debug → target/debug/fnf
 cargo clippy          # lint
 ```
 
+## Release
+
+Releases are managed with [cargo-release](https://github.com/crate-ci/cargo-release):
+
+```sh
+cargo release patch --execute   # patch release (use minor or major as appropriate)
+```
+
 ## Requirements
 
 - Fedora / RHEL-based system with `/usr/bin/dnf`

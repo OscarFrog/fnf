@@ -19,6 +19,9 @@ cargo clippy                   # lint
 cargo test                     # run tests (none currently)
 cargo install --path .         # install to ~/.cargo/bin/fnf
 
+# Releasing (cargo-release)
+cargo release patch --execute  # patch release; use minor or major as appropriate
+
 # RPM packaging
 ./pkg/make-sources.sh          # produces pkg/fnf-<version>.tar.gz + vendor tarball
 rpmbuild -ba pkg/fnf.spec ...  # see README.md for full rpmbuild invocation
