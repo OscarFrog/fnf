@@ -39,6 +39,8 @@ enum Commands {
     Upgrade {
         #[arg(long, short = 'a', help = "Show architecture column")]
         show_arch: bool,
+        #[arg(long, short = 'c', help = "Print the dnf command before running it")]
+        show_command: bool,
     },
 }
 
@@ -46,7 +48,7 @@ fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Upgrade { show_arch } => run_upgrade_wrapper(show_arch),
+        Commands::Upgrade { show_arch, show_command } => run_upgrade_wrapper(show_arch, show_command),
     };
 
     if let Err(e) = result {
@@ -55,7 +57,7 @@ fn main() {
     }
 }
 
-fn run_upgrade_wrapper(show_arch: bool) -> Result<()> {
+fn run_upgrade_wrapper(show_arch: bool, show_command: bool) -> Result<()> {
     let (updates, size_info) = check_updates().context("checking for updates")?;
 
     if updates.is_empty() {
@@ -64,6 +66,16 @@ fn run_upgrade_wrapper(show_arch: bool) -> Result<()> {
     }
 
     display_updates(&updates, show_arch, &size_info);
+
+    if show_command {
+        let specs = upgrade_specs(&updates);
+        let cmd = std::iter::once(DNF)
+            .chain(["upgrade", "-y"])
+            .chain(specs.iter().map(String::as_str))
+            .collect::<Vec<_>>()
+            .join(" ");
+        println!("{}", format!("==> Command: {cmd}").dimmed());
+    }
 
     print!("\n{} ", "==> Proceed with upgrade? [Y/n]".bold());
     io::stdout().flush()?;
@@ -396,18 +408,19 @@ fn display_updates(updates: &[PackageUpdate], show_arch: bool, size_info: &SizeI
     }
 }
 
-fn do_upgrade(updates: &[PackageUpdate]) {
-    // Build exact NEVRA specs so dnf only upgrades what we showed the user,
-    // at the exact version displayed. Format: name-[epoch:]version-release.arch
-    let specs: Vec<String> = updates
+fn upgrade_specs(updates: &[PackageUpdate]) -> Vec<String> {
+    // name-[epoch:]version-release.arch — pins dnf to exactly what was displayed
+    updates
         .iter()
         .map(|u| format!("{}-{}.{}", u.name, u.new_version, u.arch))
-        .collect();
+        .collect()
+}
 
+fn do_upgrade(updates: &[PackageUpdate]) {
     let status = Command::new(DNF)
         .arg("upgrade")
         .arg("-y")
-        .args(&specs)
+        .args(upgrade_specs(updates))
         .status()
         .expect("failed to run dnf upgrade");
 
