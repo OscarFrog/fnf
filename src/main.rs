@@ -12,6 +12,7 @@ struct PackageUpdate {
     arch: String,
     old_version: String,
     new_version: String,
+    old_repo: String,
     repo: String,
     download_size: u64,
 }
@@ -28,14 +29,17 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     #[command(alias = "up", alias = "update", about = "Upgrade all packages")]
-    Upgrade,
+    Upgrade {
+        #[arg(long, short, help = "Show architecture column")]
+        arch: bool,
+    },
 }
 
 fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Upgrade => run_upgrade_wrapper(),
+        Commands::Upgrade { arch } => run_upgrade_wrapper(arch),
     };
 
     if let Err(e) = result {
@@ -44,7 +48,7 @@ fn main() {
     }
 }
 
-fn run_upgrade_wrapper() -> Result<()> {
+fn run_upgrade_wrapper(show_arch: bool) -> Result<()> {
     let updates = check_updates().context("checking for updates")?;
 
     if updates.is_empty() {
@@ -52,7 +56,7 @@ fn run_upgrade_wrapper() -> Result<()> {
         return Ok(());
     }
 
-    display_updates(&updates);
+    display_updates(&updates, show_arch);
 
     print!("\n{} ", "==> Proceed with upgrade? [Y/n]".bold());
     io::stdout().flush()?;
@@ -97,9 +101,10 @@ fn parse_update_lines(stdout: &str) -> Vec<PackageUpdate> {
 
         if let Some(rest) = line.strip_prefix("   replacing ") {
             let parts: Vec<&str> = rest.split_whitespace().collect();
-            if parts.len() >= 3 {
+            if parts.len() >= 4 {
                 if let Some(u) = updates.get_mut(parts[0]) {
                     u.old_version = normalize_version(parts[2]);
+                    u.old_repo = parts[3].to_string();
                 }
             }
         } else {
@@ -113,6 +118,7 @@ fn parse_update_lines(stdout: &str) -> Vec<PackageUpdate> {
                         arch: parts[1].to_string(),
                         new_version: normalize_version(parts[2]),
                         old_version: String::new(),
+                        old_repo: String::new(),
                         repo: parts[3].to_string(),
                         download_size: parse_dnf_size(parts[4], parts[5]),
                     },
@@ -155,7 +161,7 @@ fn format_size(bytes: u64) -> String {
     }
 }
 
-fn highlight_version_diff(old: &str, new: &str) -> (String, String) {
+fn highlight_diff(old: &str, new: &str) -> (String, String) {
     let prefix_len = old
         .bytes()
         .zip(new.bytes())
@@ -183,7 +189,7 @@ fn highlight_version_diff(old: &str, new: &str) -> (String, String) {
     (old_str, new_str)
 }
 
-fn display_updates(updates: &[PackageUpdate]) {
+fn display_updates(updates: &[PackageUpdate], show_arch: bool) {
     let count = updates.len();
     let total_size = updates.iter().map(|u| u.download_size).sum();
 
@@ -210,25 +216,36 @@ fn display_updates(updates: &[PackageUpdate]) {
         .unwrap_or(0);
 
     for update in updates {
-        let (old_colored, new_colored) =
-            highlight_version_diff(&update.old_version, &update.new_version);
+        let (old_ver, new_ver) = highlight_diff(&update.old_version, &update.new_version);
 
         let name_padded = format!("{:<max_name$}", update.name);
-        let arch_padded = format!("{:<max_arch$}", update.arch);
         let old_pad = " ".repeat(max_old.saturating_sub(update.old_version.len()));
         let size_str = format_size(update.download_size);
         let size_pad = " ".repeat(max_size.saturating_sub(size_str.len()));
 
+        let repo_display = if update.old_repo.is_empty() || update.old_repo == update.repo {
+            update.repo.dimmed().to_string()
+        } else {
+            let (old_r, new_r) = highlight_diff(&update.old_repo, &update.repo);
+            format!("{} -> {}", old_r, new_r)
+        };
+
+        let arch_col = if show_arch {
+            format!("  {}", format!("{:<max_arch$}", update.arch).dimmed())
+        } else {
+            String::new()
+        };
+
         println!(
-            "    {}  {}  {}{} -> {}  {}{}  {}",
+            "    {}{}  {}{} -> {}  {}{}  {}",
             name_padded.bold(),
-            arch_padded.dimmed(),
-            old_colored,
+            arch_col,
+            old_ver,
             old_pad,
-            new_colored,
+            new_ver,
             size_pad,
             size_str.dimmed(),
-            update.repo.dimmed(),
+            repo_display,
         );
     }
 }
