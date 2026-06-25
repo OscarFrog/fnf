@@ -1,0 +1,6 @@
+pre-release-hook = ["bash", "pkg/pre-release.sh"]
+
+[[pre-release-replacements]]
+file = "pkg/fnf.spec"
+search = "^Version:        [0-9.]+$"
+replace = "Version:        {{version}}"

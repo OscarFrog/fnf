@@ -21,6 +21,7 @@ cargo install --path .         # install to ~/.cargo/bin/fnf
 
 # Releasing (cargo-release)
 cargo release patch --execute  # patch release; use minor or major as appropriate
+# release.toml auto-updates pkg/fnf.spec Version: and prepends a %changelog entry via pkg/pre-release.sh
 
 # RPM packaging
 ./pkg/make-sources.sh          # produces pkg/fnf-<version>.tar.gz + vendor tarball
