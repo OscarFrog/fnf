@@ -65,6 +65,7 @@ Everything lives in `src/main.rs`. No modules, no workspace.
 - Repo column: shows repo name dimmed when unchanged; shows `old_repo -> new_repo` diff when the package's source repo changed
 - `shorten_repo()` replaces hex transaction hashes (≥20 hex chars) with `first2..last2` (e.g. `19..8e`) since they carry no useful meaning
 - Arch column is hidden by default; `fnf upgrade --show-arch` / `-a` shows it
+- `fnf upgrade --group <repository|none>` / `-g` controls grouping; default `repository` sorts packages by destination repo (`new_repo`) under an underlined repo header, `none` prints a single flat list sorted by name. Column widths are computed globally so rows align across groups.
 - `fnf upgrade --show-command` / `-c` prints the exact `dnf upgrade -y name-version.arch …` command above the Y/n prompt
 - `DNF` constant points to `/usr/bin/dnf` (absolute path, avoids PATH shadowing)
 - clap handles subcommand parsing; `upgrade` has aliases `up` and `update`

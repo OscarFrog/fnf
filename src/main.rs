@@ -3,7 +3,7 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 
@@ -41,14 +41,24 @@ enum Commands {
         show_arch: bool,
         #[arg(long, short = 'c', help = "Print the dnf command before running it")]
         show_command: bool,
+        #[arg(long, short = 'g', value_enum, default_value_t = GroupBy::Repository, help = "Group packages")]
+        group: GroupBy,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum GroupBy {
+    /// Group packages by repository
+    Repository,
+    /// Do not group packages
+    None,
 }
 
 fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Upgrade { show_arch, show_command } => run_upgrade_wrapper(&Options{ show_arch, show_command }),
+        Commands::Upgrade { show_arch, show_command, group } => run_upgrade_wrapper(&Options{ show_arch, show_command, group }),
     };
 
     if let Err(e) = result {
@@ -60,6 +70,7 @@ fn main() {
 struct Options {
     show_arch: bool,
     show_command: bool,
+    group: GroupBy,
 }
 
 fn run_upgrade_wrapper(options: &Options) -> Result<()> {
@@ -70,9 +81,9 @@ fn run_upgrade_wrapper(options: &Options) -> Result<()> {
         return Ok(());
     }
 
-    let Options { show_arch, show_command } = *options;
+    let Options { show_arch, show_command, group } = *options;
 
-    display_updates(&updates, show_arch, &size_info);
+    display_updates(&updates, show_arch, group, &size_info);
 
     if show_command {
         let specs = upgrade_specs(&updates);
@@ -326,7 +337,7 @@ fn shorten_repo(repo: &str) -> String {
     }
 }
 
-fn display_updates(updates: &[PackageUpdate], show_arch: bool, size_info: &SizeInfo) {
+fn display_updates(updates: &[PackageUpdate], show_arch: bool, group: GroupBy, size_info: &SizeInfo) {
     let count = updates.len();
 
     let size_str = match (size_info.download, size_info.net_disk) {
@@ -375,7 +386,7 @@ fn display_updates(updates: &[PackageUpdate], show_arch: bool, size_info: &SizeI
         .max()
         .unwrap_or(0);
 
-    for update in updates {
+    let print_row = |update: &PackageUpdate| {
         let (old_ver, new_ver) = highlight_diff(&update.old_version, &update.new_version);
 
         let name_padded = format!("{:<max_name$}", update.name);
@@ -411,6 +422,29 @@ fn display_updates(updates: &[PackageUpdate], show_arch: bool, size_info: &SizeI
             size_str.dimmed(),
             repo_display,
         );
+    };
+
+    match group {
+        GroupBy::None => {
+            for update in updates {
+                print_row(update);
+            }
+        }
+        GroupBy::Repository => {
+            let mut order: Vec<&PackageUpdate> = updates.iter().collect();
+            order.sort_by(|a, b| a.new_repo.cmp(&b.new_repo).then_with(|| a.name.cmp(&b.name)));
+            let mut current: Option<&str> = None;
+            for update in order {
+                if current != Some(update.new_repo.as_str()) {
+                    if current.is_some() {
+                        println!();
+                    }
+                    current = Some(update.new_repo.as_str());
+                    println!("  {}", shorten_repo(&update.new_repo).underline().bold());
+                }
+                print_row(update);
+            }
+        }
     }
 }
 

@@ -52,15 +52,17 @@ fnf update           # alias
 
 ### Flags
 
-| Flag             | Short | Description                                        |
-|------------------|-------|----------------------------------------------------|
-| `--show-arch`    | `-a`  | Show the architecture column                       |
-| `--show-command` | `-c`  | Print the exact `dnf` command above the Y/n prompt |
+| Flag             | Short | Description                                                  |
+|------------------|-------|--------------------------------------------------------------|
+| `--show-arch`    | `-a`  | Show the architecture column                                 |
+| `--show-command` | `-c`  | Print the exact `dnf` command above the Y/n prompt           |
+| `--group`        | `-g`  | Group packages: `repository` (default) or `none`             |
 
 ### Example with flags
 
 ```sh
 fnf upgrade --show-arch --show-command
+fnf upgrade --group none
 ```
 
 ## How it works
