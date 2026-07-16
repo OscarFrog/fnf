@@ -26,8 +26,16 @@ struct SizeInfo {
 
 const DNF: &str = "/usr/bin/dnf";
 
+// fnf parses dnf's human-readable output. Force a deterministic locale for
+// the inspection command so translated labels and locale-specific decimal
+// separators cannot break the parser.
+const DNF_OUTPUT_LOCALE: &str = "C";
+
 #[derive(Parser)]
-#[command(name = "fnf", about = "Fancified YUM — dnf wrapper with improved upgrade output")]
+#[command(
+    name = "fnf",
+    about = "Fancified YUM — dnf wrapper with improved upgrade output"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -58,7 +66,15 @@ fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Upgrade { show_arch, show_command, group } => run_upgrade_wrapper(&Options{ show_arch, show_command, group }),
+        Commands::Upgrade {
+            show_arch,
+            show_command,
+            group,
+        } => run_upgrade_wrapper(&Options {
+            show_arch,
+            show_command,
+            group,
+        }),
     };
 
     if let Err(e) = result {
@@ -81,7 +97,11 @@ fn run_upgrade_wrapper(options: &Options) -> Result<()> {
         return Ok(());
     }
 
-    let Options { show_arch, show_command, group } = *options;
+    let Options {
+        show_arch,
+        show_command,
+        group,
+    } = *options;
 
     display_updates(&updates, show_arch, group, &size_info);
 
@@ -113,6 +133,9 @@ fn run_upgrade_wrapper(options: &Options) -> Result<()> {
 
 fn check_updates() -> Result<(Vec<PackageUpdate>, SizeInfo)> {
     let mut child = Command::new(DNF)
+        .env("LANG", DNF_OUTPUT_LOCALE)
+        .env("LC_ALL", DNF_OUTPUT_LOCALE)
+        .env("LANGUAGE", DNF_OUTPUT_LOCALE)
         .args(["upgrade", "--assumeno", "--color=never"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -236,21 +259,34 @@ fn parse_update_lines(stdout: &str) -> Result<Vec<PackageUpdate>> {
             })?;
             let parts: Vec<&str> = rest.split_whitespace().collect();
             if parts.len() < 4 {
-                bail!("'replacing' line for '{name}' has {} fields, expected ≥4: {line:?}", parts.len());
+                bail!(
+                    "'replacing' line for '{name}' has {} fields, expected ≥4: {line:?}",
+                    parts.len()
+                );
             }
             if parts[0] != name {
-                bail!("'replacing' references '{}' but expected '{name}'", parts[0]);
+                bail!(
+                    "'replacing' references '{}' but expected '{name}'",
+                    parts[0]
+                );
             }
-            let u = updates.last_mut().expect("updates non-empty when pending is set");
+            let u = updates
+                .last_mut()
+                .expect("updates non-empty when pending is set");
             u.old_version = normalize_version(parts[2]);
             u.old_repo = parts[3].to_string();
         } else {
             if let Some(ref name) = pending {
-                bail!("expected 'replacing' line for '{name}' but got another package line: {line:?}");
+                bail!(
+                    "expected 'replacing' line for '{name}' but got another package line: {line:?}"
+                );
             }
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() != 6 {
-                bail!("package line has {} fields, expected 6: {line:?}", parts.len());
+                bail!(
+                    "package line has {} fields, expected 6: {line:?}",
+                    parts.len()
+                );
             }
             pending = Some(parts[0].to_string());
             updates.push(PackageUpdate {
@@ -279,7 +315,9 @@ fn normalize_version(v: &str) -> String {
 }
 
 fn parse_dnf_size(number: &str, unit: &str) -> Result<u64> {
-    let n: f64 = number.parse().with_context(|| format!("invalid size number: {number:?}"))?;
+    let n: f64 = number
+        .parse()
+        .with_context(|| format!("invalid size number: {number:?}"))?;
     Ok(match unit {
         "GiB" => (n * (1u64 << 30) as f64) as u64,
         "MiB" => (n * (1u64 << 20) as f64) as u64,
@@ -323,8 +361,18 @@ fn highlight_diff(old: &str, new: &str) -> (String, String) {
     let new_mid = &new_rest[..new_rest.len() - suffix_len];
     let suffix = &old_rest[old_rest.len() - suffix_len..];
 
-    let old_str = format!("{}{}{}", prefix.dimmed(), old_mid.red().bold(), suffix.dimmed());
-    let new_str = format!("{}{}{}", prefix.dimmed(), new_mid.green().bold(), suffix.dimmed());
+    let old_str = format!(
+        "{}{}{}",
+        prefix.dimmed(),
+        old_mid.red().bold(),
+        suffix.dimmed()
+    );
+    let new_str = format!(
+        "{}{}{}",
+        prefix.dimmed(),
+        new_mid.green().bold(),
+        suffix.dimmed()
+    );
 
     (old_str, new_str)
 }
@@ -337,7 +385,12 @@ fn shorten_repo(repo: &str) -> String {
     }
 }
 
-fn display_updates(updates: &[PackageUpdate], show_arch: bool, group: GroupBy, size_info: &SizeInfo) {
+fn display_updates(
+    updates: &[PackageUpdate],
+    show_arch: bool,
+    group: GroupBy,
+    size_info: &SizeInfo,
+) {
     let count = updates.len();
 
     let size_str = match (size_info.download, size_info.net_disk) {
@@ -378,8 +431,16 @@ fn display_updates(updates: &[PackageUpdate], show_arch: bool, group: GroupBy, s
 
     let max_name = updates.iter().map(|u| u.name.len()).max().unwrap_or(0);
     let max_arch = updates.iter().map(|u| u.arch.len()).max().unwrap_or(0);
-    let max_old = updates.iter().map(|u| u.old_version.len()).max().unwrap_or(0);
-    let max_new = updates.iter().map(|u| u.new_version.len()).max().unwrap_or(0);
+    let max_old = updates
+        .iter()
+        .map(|u| u.old_version.len())
+        .max()
+        .unwrap_or(0);
+    let max_new = updates
+        .iter()
+        .map(|u| u.new_version.len())
+        .max()
+        .unwrap_or(0);
     let max_size = updates
         .iter()
         .map(|u| format_size(u.download_size).len())
@@ -432,7 +493,11 @@ fn display_updates(updates: &[PackageUpdate], show_arch: bool, group: GroupBy, s
         }
         GroupBy::Repository => {
             let mut order: Vec<&PackageUpdate> = updates.iter().collect();
-            order.sort_by(|a, b| a.new_repo.cmp(&b.new_repo).then_with(|| a.name.cmp(&b.name)));
+            order.sort_by(|a, b| {
+                a.new_repo
+                    .cmp(&b.new_repo)
+                    .then_with(|| a.name.cmp(&b.name))
+            });
             let mut current: Option<&str> = None;
             for update in order {
                 if current != Some(update.new_repo.as_str()) {
