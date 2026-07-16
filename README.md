@@ -1,4 +1,4 @@
-# fnf — Fancified YUM
+# fnf — Fancified DNF
 
 A `dnf upgrade` wrapper with yay-style output: colored version diffs, aligned columns, download/disk sizes, and a
 confirmation prompt before anything is installed.
