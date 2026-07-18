@@ -1,7 +1,10 @@
+mod cmd;
+
 use std::io::{self, BufRead, Write};
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
+use crate::cmd::Cmd;
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand, ValueEnum};
 use colored::Colorize;
@@ -100,14 +103,10 @@ fn run_upgrade_wrapper(options: &Options) -> Result<()> {
 
     display_updates(&updates, show_arch, group, &size_info);
 
+    let upgrade_cmd = upgrade_cmd(&updates);
+
     if show_command {
-        let specs = upgrade_specs(&updates);
-        let cmd = std::iter::once(DNF)
-            .chain(["upgrade", "-y"])
-            .chain(specs.iter().map(String::as_str))
-            .collect::<Vec<_>>()
-            .join(" ");
-        println!("{}", format!("\n==> Command: {cmd}").dimmed());
+        println!("{}", format!("\n==> Command: {upgrade_cmd}").dimmed());
     }
 
     print!("\n{} ", "==> Proceed with upgrade? [Y/n]".bold());
@@ -118,7 +117,8 @@ fn run_upgrade_wrapper(options: &Options) -> Result<()> {
     let answer = input.trim().to_lowercase();
 
     if answer.is_empty() || answer == "y" || answer == "yes" {
-        do_upgrade(&updates);
+        let exit_code = upgrade_cmd.execute()?;
+        std::process::exit(exit_code);
     } else {
         println!("{}", "Operation cancelled.".yellow());
     }
@@ -513,13 +513,8 @@ fn upgrade_specs(updates: &[PackageUpdate]) -> Vec<String> {
         .collect()
 }
 
-fn do_upgrade(updates: &[PackageUpdate]) {
-    let status = Command::new(DNF)
-        .arg("upgrade")
-        .arg("-y")
-        .args(upgrade_specs(updates))
-        .status()
-        .expect("failed to run dnf upgrade");
-
-    std::process::exit(status.code().unwrap_or(1));
+fn upgrade_cmd(updates: &[PackageUpdate]) -> Cmd {
+    let mut cmd = Cmd::new(DNF);
+    cmd.arg("upgrade").arg("-y").args(upgrade_specs(updates));
+    cmd
 }
