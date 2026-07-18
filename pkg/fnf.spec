@@ -1,5 +1,5 @@
 Name:           fnf
-Version:        0.1.1
+Version:        0.2.0
 Release:        1%{?dist}
 Summary:        dnf upgrade wrapper with yay-style colored output
 
@@ -38,6 +38,9 @@ Binary name: fnf. Run as: fnf upgrade (aliases: up, update).
 %{_bindir}/fnf
 
 %changelog
+* sam. juil. 18 2026 sebdotv <sebdotv@gmail.com> - 0.2.0-1
+- Release 0.2.0
+
 * Wed Jun 25 2026 sebdotv <sebdotv@gmail.com> - 0.1.1-1
 - Release 0.1.1
 
