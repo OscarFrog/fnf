@@ -28,6 +28,7 @@ struct SizeInfo {
 }
 
 const DNF: &str = "/usr/bin/dnf";
+const LOCALE_ENV: (&str, &str) = ("LC_ALL", "C.UTF-8");
 
 #[derive(Parser)]
 #[command(
@@ -127,8 +128,9 @@ fn run_upgrade_wrapper(options: &Options) -> Result<()> {
 }
 
 fn check_updates() -> Result<(Vec<PackageUpdate>, SizeInfo)> {
-    let mut child = Command::new(DNF)
-        .args(["upgrade", "--assumeno", "--color=never"])
+    let mut cmd = dnf_cmd();
+    cmd.args(["upgrade", "--assumeno", "--color=never"]);
+    let mut child = Command::from(cmd)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -514,7 +516,14 @@ fn upgrade_specs(updates: &[PackageUpdate]) -> Vec<String> {
 }
 
 fn upgrade_cmd(updates: &[PackageUpdate]) -> Cmd {
-    let mut cmd = Cmd::new(DNF);
+    let mut cmd = dnf_cmd();
     cmd.arg("upgrade").arg("-y").args(upgrade_specs(updates));
+    cmd
+}
+
+fn dnf_cmd() -> Cmd {
+    let mut cmd = Cmd::new(DNF);
+    let (k, v) = LOCALE_ENV;
+    cmd.env(k, v);
     cmd
 }
