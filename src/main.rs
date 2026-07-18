@@ -1,31 +1,19 @@
 mod cmd;
+mod model;
+mod size;
+mod stderr;
+mod stdout;
 
-use std::io::{self, BufRead, Write};
+use std::io::{self, Write};
 use std::process::{Command, Stdio};
-use std::time::Duration;
 
 use crate::cmd::Cmd;
-use anyhow::{Context, Result, bail};
+use crate::model::{PackageUpdate, SizeInfo};
+use crate::stderr::process_stderr;
+use crate::stdout::parse_update_lines;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use colored::Colorize;
-use indicatif::{ProgressBar, ProgressStyle};
-
-#[derive(Debug)]
-struct PackageUpdate {
-    name: String,
-    arch: String,
-    old_version: String,
-    new_version: String,
-    old_repo: String,
-    new_repo: String,
-    download_size: u64,
-}
-
-#[derive(Default)]
-struct SizeInfo {
-    download: Option<u64>,
-    net_disk: Option<i64>,
-}
 
 const DNF: &str = "/usr/bin/dnf";
 const LOCALE_ENV: (&str, &str) = ("LC_ALL", "C.UTF-8");
@@ -152,173 +140,6 @@ fn check_updates() -> Result<(Vec<PackageUpdate>, SizeInfo)> {
     let updates = parse_update_lines(&stdout).context("parsing dnf output")?;
 
     Ok((updates, size_info))
-}
-
-fn process_stderr(stderr: impl std::io::Read) -> Result<SizeInfo> {
-    let reader = std::io::BufReader::new(stderr);
-    let mut size_info = SizeInfo::default();
-    let mut spinner: Option<ProgressBar> = None;
-
-    for line in reader.lines() {
-        let line = line.context("reading dnf stderr")?;
-        match line.as_str() {
-            "Updating and loading repositories:" => {
-                let pb = ProgressBar::new_spinner();
-                pb.set_style(
-                    ProgressStyle::default_spinner()
-                        .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏ ")
-                        .template("{spinner:.cyan} {msg}")
-                        .unwrap(),
-                );
-                pb.enable_steady_tick(Duration::from_millis(100));
-                pb.set_message("Updating and loading repositories...");
-                spinner = Some(pb);
-            }
-            "Repositories loaded." => {
-                if let Some(pb) = spinner.take() {
-                    pb.finish_and_clear();
-                }
-            }
-            "Operation aborted by the user." => {}
-            s if s.starts_with("Total size of inbound packages is") => {
-                size_info.download = parse_download_line(s);
-            }
-            s if s.starts_with("After this operation,") => {
-                size_info.net_disk = parse_disk_line(s);
-            }
-            other => match &spinner {
-                Some(pb) => pb.println(other),
-                None => eprintln!("{other}"),
-            },
-        }
-    }
-
-    if let Some(pb) = spinner.take() {
-        pb.finish_and_clear();
-    }
-
-    Ok(size_info)
-}
-
-fn parse_download_line(line: &str) -> Option<u64> {
-    // "Total size of inbound packages is 53 MiB. Need to download 53 MiB."
-    let need_part = line.split(". ").nth(1)?;
-    let need_part = need_part.trim_end_matches('.');
-    let words: Vec<&str> = need_part.split_whitespace().collect();
-    if words.len() == 5 && words[..3] == ["Need", "to", "download"] {
-        parse_dnf_size(words[3], words[4]).ok()
-    } else {
-        None
-    }
-}
-
-fn parse_disk_line(line: &str) -> Option<i64> {
-    // "After this operation, 11 MiB extra will be used (install 275 MiB, remove 264 MiB)."
-    // "After this operation, 5 MiB will be freed (install 264 MiB, remove 269 MiB)."
-    let rest = line.strip_prefix("After this operation, ")?;
-    let words: Vec<&str> = rest.split_whitespace().collect();
-    if words.len() < 4 {
-        return None;
-    }
-    let bytes = parse_dnf_size(words[0], words[1]).ok()? as i64;
-    match &words[2..4] {
-        ["extra", "will"] => Some(bytes),
-        ["will", "be"] if words.get(4) == Some(&"freed") => Some(-bytes),
-        _ => None,
-    }
-}
-
-fn parse_update_lines(stdout: &str) -> Result<Vec<PackageUpdate>> {
-    let mut updates: Vec<PackageUpdate> = Vec::new();
-    let mut in_upgrading = false;
-    // Name of the last package line parsed, waiting for its `replacing` sub-line.
-    let mut pending: Option<String> = None;
-
-    for line in stdout.lines() {
-        if !line.starts_with(' ') {
-            if let Some(ref name) = pending {
-                bail!("expected 'replacing' line for '{name}' but section ended");
-            }
-            in_upgrading = line.trim_end() == "Upgrading:";
-            continue;
-        }
-
-        if !in_upgrading {
-            continue;
-        }
-
-        if let Some(rest) = line.strip_prefix("   replacing ") {
-            let name = pending.take().ok_or_else(|| {
-                anyhow::anyhow!("unexpected 'replacing' line with no preceding package: {line:?}")
-            })?;
-            let parts: Vec<&str> = rest.split_whitespace().collect();
-            if parts.len() < 4 {
-                bail!(
-                    "'replacing' line for '{name}' has {} fields, expected ≥4: {line:?}",
-                    parts.len()
-                );
-            }
-            if parts[0] != name {
-                bail!(
-                    "'replacing' references '{}' but expected '{name}'",
-                    parts[0]
-                );
-            }
-            let u = updates
-                .last_mut()
-                .expect("updates non-empty when pending is set");
-            u.old_version = normalize_version(parts[2]);
-            u.old_repo = parts[3].to_string();
-        } else {
-            if let Some(ref name) = pending {
-                bail!(
-                    "expected 'replacing' line for '{name}' but got another package line: {line:?}"
-                );
-            }
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() != 6 {
-                bail!(
-                    "package line has {} fields, expected 6: {line:?}",
-                    parts.len()
-                );
-            }
-            pending = Some(parts[0].to_string());
-            updates.push(PackageUpdate {
-                name: parts[0].to_string(),
-                arch: parts[1].to_string(),
-                new_version: normalize_version(parts[2]),
-                old_version: String::new(),
-                old_repo: String::new(),
-                new_repo: parts[3].to_string(),
-                download_size: parse_dnf_size(parts[4], parts[5])
-                    .with_context(|| format!("parsing size on line {line:?}"))?,
-            });
-        }
-    }
-
-    if let Some(name) = pending {
-        bail!("expected 'replacing' line for '{name}' but output ended");
-    }
-
-    updates.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(updates)
-}
-
-fn normalize_version(v: &str) -> String {
-    v.strip_prefix("0:").unwrap_or(v).to_string()
-}
-
-fn parse_dnf_size(number: &str, unit: &str) -> Result<u64> {
-    let n: f64 = number
-        .parse()
-        .with_context(|| format!("invalid size number: {number:?}"))?;
-    Ok(match unit {
-        "GiB" => (n * (1u64 << 30) as f64) as u64,
-        "MiB" => (n * (1u64 << 20) as f64) as u64,
-        "KiB" => (n * (1u64 << 10) as f64) as u64,
-        "B" => n as u64,
-        _ => bail!("unknown size unit: {unit:?}"),
-    })
 }
 
 fn format_size(bytes: u64) -> String {
