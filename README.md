@@ -48,6 +48,9 @@ rpmbuild -ba pkg/fnf.spec \
 fnf upgrade          # check for updates and prompt
 fnf up               # alias
 fnf update           # alias
+fnf refresh          # force-refresh enabled repository metadata
+fnf clean            # remove all cached DNF data
+fnf clean-all        # alias for clean
 ```
 
 ### Flags
@@ -77,6 +80,11 @@ fnf upgrade --group none
 4. Prompts for confirmation
 5. On Y: runs `dnf upgrade -y pkg-version.arch …` with the exact package specs shown — no surprise upgrades if new
    versions appeared since the check
+
+### Repository maintenance
+
+- `fnf refresh` runs `dnf --refresh makecache`, expiring and immediately downloading metadata for all enabled repositories.
+- `fnf clean` runs `dnf clean all`, removing cached packages, metadata, and generated cache files. It does not delete repository configuration files.
 
 ## Build
 

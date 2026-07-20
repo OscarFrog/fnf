@@ -15,8 +15,10 @@ Binary name: `fnf`.
 ```sh
 cargo build                    # build debug binary → target/debug/fnf
 cargo run -- upgrade           # run (aliases: up, update)
+cargo run -- refresh           # run dnf --refresh makecache
+cargo run -- clean             # run dnf clean all (alias: clean-all)
 cargo clippy                   # lint
-cargo test                     # run tests (none currently)
+cargo test                     # run tests
 cargo install --path .         # install to ~/.cargo/bin/fnf
 
 # Releasing (cargo-release)
@@ -71,4 +73,5 @@ Everything lives in `src/main.rs`. No modules, no workspace.
 - `fnf upgrade --group <repository|none>` / `-g` controls grouping; default `repository` sorts packages by destination repo (`new_repo`) under an underlined repo header, `none` prints a single flat list sorted by name. Column widths are computed globally so rows align across groups.
 - `fnf upgrade --show-command` / `-c` prints the exact `dnf upgrade -y name-version.arch …` command above the Y/n prompt
 - `DNF` constant points to `/usr/bin/dnf` (absolute path, avoids PATH shadowing)
-- clap handles subcommand parsing; `upgrade` has aliases `up` and `update`
+- clap handles subcommand parsing; `upgrade` has aliases `up` and `update`; `clean` has alias `clean-all`
+- `refresh_cmd()` runs `dnf --refresh makecache`; `clean_cmd()` runs `dnf clean all`; both use the shared locale-aware `dnf_cmd()` builder

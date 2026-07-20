@@ -39,6 +39,10 @@ enum Commands {
         #[arg(long, short = 'g', value_enum, default_value_t = GroupBy::Repository, help = "Group packages")]
         group: GroupBy,
     },
+    #[command(about = "Refresh metadata for all enabled repositories")]
+    Refresh,
+    #[command(alias = "clean-all", about = "Remove all cached DNF repository data")]
+    Clean,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -62,6 +66,8 @@ fn main() {
             show_command,
             group,
         }),
+        Commands::Refresh => run_dnf_command(refresh_cmd()),
+        Commands::Clean => run_dnf_command(clean_cmd()),
     };
 
     if let Err(e) = result {
@@ -328,6 +334,31 @@ fn display_updates(
     }
 }
 
+fn run_dnf_command(cmd: Cmd) -> Result<()> {
+    let command = cmd.to_string();
+    let exit_code = cmd
+        .execute()
+        .with_context(|| format!("running {command}"))?;
+
+    if exit_code != 0 {
+        anyhow::bail!("{command} exited with status {exit_code}");
+    }
+
+    Ok(())
+}
+
+fn refresh_cmd() -> Cmd {
+    let mut cmd = dnf_cmd();
+    cmd.args(["--refresh", "makecache"]);
+    cmd
+}
+
+fn clean_cmd() -> Cmd {
+    let mut cmd = dnf_cmd();
+    cmd.args(["clean", "all"]);
+    cmd
+}
+
 fn upgrade_specs(updates: &[PackageUpdate]) -> Vec<String> {
     // name-[epoch:]version-release.arch — pins dnf to exactly what was displayed
     updates
@@ -347,4 +378,25 @@ fn dnf_cmd() -> Cmd {
     let (k, v) = LOCALE_ENV;
     cmd.env(k, v);
     cmd
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn refresh_command_forces_repository_metadata_refresh() {
+        assert_eq!(
+            refresh_cmd().to_string(),
+            "LC_ALL=C.UTF-8 /usr/bin/dnf --refresh makecache"
+        );
+    }
+
+    #[test]
+    fn clean_command_removes_all_cached_dnf_data() {
+        assert_eq!(
+            clean_cmd().to_string(),
+            "LC_ALL=C.UTF-8 /usr/bin/dnf clean all"
+        );
+    }
 }
