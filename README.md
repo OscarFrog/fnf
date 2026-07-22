@@ -48,9 +48,12 @@ rpmbuild -ba pkg/fnf.spec \
 fnf upgrade          # check for updates and prompt
 fnf up               # alias
 fnf update           # alias
-fnf refresh          # force-refresh enabled repository metadata
-fnf clean            # remove all cached DNF data
-fnf clean-all        # alias for clean
+fnf refresh           # force-refresh enabled repository metadata
+fnf refresh upgrade   # refresh metadata, then start the upgrade flow
+fnf clean             # remove all cached DNF data
+fnf clean upgrade     # clean the cache, then start the upgrade flow
+fnf clean-all         # alias for clean
+fnf clean-all upgrade # alias form followed by upgrade
 ```
 
 ### Flags
@@ -85,6 +88,8 @@ fnf upgrade --group none
 
 - `fnf refresh` runs `dnf --refresh makecache`, expiring and immediately downloading metadata for all enabled repositories.
 - `fnf clean` runs `dnf clean all`, removing cached packages, metadata, and generated cache files. It does not delete repository configuration files.
+- Adding `upgrade` after `refresh`, `clean`, or `clean-all` starts the normal interactive `fnf upgrade` flow after the maintenance command succeeds.
+- If the maintenance command fails, the upgrade is not started, matching shell `&&` behavior.
 
 ## Build
 

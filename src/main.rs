@@ -29,6 +29,16 @@ struct Cli {
 }
 
 #[derive(Subcommand)]
+enum MaintenanceFollowUp {
+    #[command(
+        alias = "up",
+        alias = "update",
+        about = "Upgrade all packages after repository maintenance"
+    )]
+    Upgrade,
+}
+
+#[derive(Subcommand)]
 enum Commands {
     #[command(alias = "up", alias = "update", about = "Upgrade all packages")]
     Upgrade {
@@ -40,9 +50,15 @@ enum Commands {
         group: GroupBy,
     },
     #[command(about = "Refresh metadata for all enabled repositories")]
-    Refresh,
+    Refresh {
+        #[command(subcommand)]
+        next: Option<MaintenanceFollowUp>,
+    },
     #[command(alias = "clean-all", about = "Remove all cached DNF repository data")]
-    Clean,
+    Clean {
+        #[command(subcommand)]
+        next: Option<MaintenanceFollowUp>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -66,8 +82,8 @@ fn main() {
             show_command,
             group,
         }),
-        Commands::Refresh => run_dnf_command(refresh_cmd()),
-        Commands::Clean => run_dnf_command(clean_cmd()),
+        Commands::Refresh { next } => run_maintenance(refresh_cmd(), next),
+        Commands::Clean { next } => run_maintenance(clean_cmd(), next),
     };
 
     if let Err(e) = result {
@@ -347,6 +363,19 @@ fn run_dnf_command(cmd: Cmd) -> Result<()> {
     Ok(())
 }
 
+fn run_maintenance(cmd: Cmd, next: Option<MaintenanceFollowUp>) -> Result<()> {
+    run_dnf_command(cmd)?;
+
+    match next {
+        Some(MaintenanceFollowUp::Upgrade) => run_upgrade_wrapper(&Options {
+            show_arch: false,
+            show_command: false,
+            group: GroupBy::Repository,
+        }),
+        None => Ok(()),
+    }
+}
+
 fn refresh_cmd() -> Cmd {
     let mut cmd = dnf_cmd();
     cmd.args(["--refresh", "makecache"]);
@@ -398,5 +427,49 @@ mod tests {
             clean_cmd().to_string(),
             "LC_ALL=C.UTF-8 /usr/bin/dnf clean all"
         );
+    }
+}
+
+#[cfg(test)]
+mod maintenance_follow_up_tests {
+    use super::*;
+
+    #[test]
+    fn clean_can_be_followed_by_upgrade() {
+        let cli = Cli::try_parse_from(["fnf", "clean", "upgrade"])
+            .expect("clean upgrade should be accepted");
+
+        assert!(matches!(
+            cli.command,
+            Commands::Clean {
+                next: Some(MaintenanceFollowUp::Upgrade)
+            }
+        ));
+    }
+
+    #[test]
+    fn clean_all_alias_can_be_followed_by_upgrade() {
+        let cli = Cli::try_parse_from(["fnf", "clean-all", "upgrade"])
+            .expect("clean-all upgrade should be accepted");
+
+        assert!(matches!(
+            cli.command,
+            Commands::Clean {
+                next: Some(MaintenanceFollowUp::Upgrade)
+            }
+        ));
+    }
+
+    #[test]
+    fn refresh_can_be_followed_by_upgrade() {
+        let cli = Cli::try_parse_from(["fnf", "refresh", "upgrade"])
+            .expect("refresh upgrade should be accepted");
+
+        assert!(matches!(
+            cli.command,
+            Commands::Refresh {
+                next: Some(MaintenanceFollowUp::Upgrade)
+            }
+        ));
     }
 }
